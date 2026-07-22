@@ -1,0 +1,402 @@
+===============================================================================
+B-Form Upload Tracker - PostgreSQL Database Setup
+Execution Steps & Quick Reference
+===============================================================================
+
+DATABASE: PostgreSQL 12 or higher
+FILES PROVIDED:
+  ✓ schema.sql - Database schema with 4 tables, 12 indexes
+  ✓ triggers.sql - 8 automation triggers with PL/pgSQL functions
+  ✓ initial_data.sql - 56 societies + sample data
+  ✓ migration.sql - Utility functions and management tools
+  ✓ SETUP_GUIDE.md - Comprehensive documentation
+  ✓ EXECUTION_STEPS.txt - This file
+
+===============================================================================
+QUICK START - 3 STEPS
+===============================================================================
+
+STEP 1: Create Database
+─────────────────────────
+$ psql -U postgres -c "CREATE DATABASE bform_tracker;"
+
+STEP 2: Execute All Scripts
+────────────────────────────
+$ psql -U postgres -d bform_tracker -f schema.sql
+$ psql -U postgres -d bform_tracker -f triggers.sql
+$ psql -U postgres -d bform_tracker -f initial_data.sql
+$ psql -U postgres -d bform_tracker -f migration.sql
+
+STEP 3: Verify Installation
+────────────────────────────
+$ psql -U postgres -d bform_tracker
+
+bform_tracker=# SELECT COUNT(*) as total_societies FROM bform_societies;
+bform_tracker=# SELECT COUNT(*) as total_uploads FROM bform_uploads;
+bform_tracker=# SELECT * FROM migration_history;
+
+✓ Setup Complete!
+
+===============================================================================
+ALTERNATIVE: Execute All in One Command
+===============================================================================
+
+Option A: Sequential execution
+──────────────────────────────
+cat schema.sql triggers.sql initial_data.sql migration.sql | \
+  psql -U postgres -d bform_tracker
+
+Option B: Using psql \i command
+────────────────────────────────
+psql -U postgres -d bform_tracker << EOF
+\i schema.sql
+\i triggers.sql
+\i initial_data.sql
+\i migration.sql
+EOF
+
+Option C: From script file (create execute.sh)
+──────────────────────────────────────────────
+#!/bin/bash
+DB_NAME="bform_tracker"
+DB_USER="postgres"
+
+psql -U $DB_USER -d $DB_NAME -v ON_ERROR_STOP=1 << EOF
+\echo 'Installing schema...'
+\i schema.sql
+\echo 'Installing triggers...'
+\i triggers.sql
+\echo 'Installing initial data...'
+\i initial_data.sql
+\echo 'Installing migration tools...'
+\i migration.sql
+\echo 'Setup complete!'
+SELECT 'Total societies:' as metric, COUNT(*) FROM bform_societies;
+SELECT 'Migrations applied:' as metric, COUNT(*) FROM migration_history;
+EOF
+
+chmod +x execute.sh
+./execute.sh
+
+===============================================================================
+FILE DESCRIPTIONS
+===============================================================================
+
+schema.sql (2,300+ lines)
+────────────────────────
+- CREATE EXTENSION for UUID and pgcrypto
+- 2 ENUM types: upload_status, batch_type
+- 4 tables:
+  * bform_societies (56 societies reference)
+  * bform_uploads (main tracking table)
+  * bform_upload_history (audit trail)
+  * bform_upload_summary (statistics)
+- 12 performance indexes
+- Table comments and documentation
+
+triggers.sql (500+ lines)
+─────────────────────────
+- 8 PL/pgSQL triggers for automation:
+  1. fn_track_bform_upload_history - Auto history on status change
+  2. fn_update_bform_summary_on_upload_change - Insert summary creation
+  3. fn_update_bform_summary_on_status_change - Update summary counts
+  4. fn_calculate_batch_completion_rate - Completion % calculation
+  5. fn_update_society_last_upload_date - Update society last upload
+  6. fn_prevent_duplicate_uploads - Checksum-based duplicate prevention
+  7. fn_soft_delete_bform_upload - Archive on soft delete
+  8. fn_update_summary_timestamp - Maintain updated_at
+
+initial_data.sql (400+ lines)
+──────────────────────────────
+- 56 societies (3 batches):
+  * Batch 1: 168BF-200BF (33 societies)
+  * Batch 2: 232BF-238BF (7 societies)
+  * Batch 3: 250BF-265BF (16 societies)
+- 12 sample uploads with various statuses
+- 5 sample summary records
+- History records from sample uploads
+- Data verification queries
+
+migration.sql (600+ lines)
+──────────────────────────
+- migration_history table for tracking
+- 10+ utility functions:
+  * fn_get_batch_statistics()
+  * fn_get_society_upload_status()
+  * fn_archive_old_history()
+  * fn_recalculate_all_summaries()
+  * fn_get_audit_report()
+  * fn_get_upload_patterns()
+  * fn_validate_data_integrity()
+  * fn_record_migration()
+  * fn_reset_database()
+- Sample queries commented for reference
+
+===============================================================================
+SCHEMA OVERVIEW
+===============================================================================
+
+Tables: 4
+├── bform_societies (56 records)
+│   └── Fields: id, customer_id (PK), society_name, batch_type, status, etc.
+│
+├── bform_uploads (primary data table)
+│   ├── Fields: id (PK), customer_id (FK), year, period, status, etc.
+│   ├── Indexes: 8 (customer_id, year, period, upload_date, status, batch, etc.)
+│   └── Constraints: UNIQUE (customer_id, year, period)
+│
+├── bform_upload_history (audit trail)
+│   ├── Fields: id (PK), upload_id (FK), previous_status, new_status, changed_by, etc.
+│   └── Indexes: 3 (upload_id, changed_at, new_status)
+│
+└── bform_upload_summary (statistics)
+    ├── Fields: id, year, period, total_uploads, completed_uploads, etc.
+    ├── Indexes: 3 (year, period, year+period)
+    └── Constraints: UNIQUE (year, period)
+
+Indexes: 12 total
+└── All include "WHERE deleted_at IS NULL" for soft deletes
+
+Enums: 2
+├── upload_status (pending, processing, completed, rejected, archived)
+└── batch_type (batch_1, batch_2, batch_3)
+
+Triggers: 8 total
+├── Auto-tracking
+├── Auto-calculations
+└── Data validation
+
+Functions: 10+ utility functions
+├── Statistics & reporting
+├── Data validation
+├── Maintenance & cleanup
+└── Migration tracking
+
+===============================================================================
+DATA INSERTION BREAKDOWN
+===============================================================================
+
+Batch 1 (33 societies):
+├── Customer IDs: 168BF through 200BF
+├── Names: Riverside Housing, Greenfield Cooperative, etc.
+└── Status: All active
+
+Batch 2 (7 societies):
+├── Customer IDs: 232BF through 238BF
+├── Names: Diamond Tower, Emerald Heights, etc.
+└── Status: All active
+
+Batch 3 (16 societies):
+├── Customer IDs: 250BF through 265BF
+├── Names: Kingsway Housing, Lunar Park, etc.
+└── Status: All active
+
+Sample Uploads: 12 records
+├── Years: 2026 (current), 2025
+├── Periods: Q1, Q2, Q3, Q4
+├── Statuses: completed (7), processing (2), pending (2), rejected (1)
+└── File sizes: 892KB to 1.3MB
+
+Summary Records: 5
+├── 2026 Q1: 12 uploads, 58.33% completion
+├── 2025 Q1-Q4: 4 records with 93-100% completion rates
+└── Calculated automatically from uploads
+
+History Records: 8+
+└── Auto-generated from upload status changes
+
+===============================================================================
+USAGE EXAMPLES
+===============================================================================
+
+1. View All Societies
+────────────────────
+psql -U postgres -d bform_tracker << EOF
+SELECT customer_id, society_name, batch_type, status FROM bform_societies
+ORDER BY batch_type, customer_id;
+EOF
+
+2. Check Statistics
+───────────────────
+psql -U postgres -d bform_tracker << EOF
+SELECT * FROM fn_get_batch_statistics();
+EOF
+
+3. View Summaries by Period
+────────────────────────────
+psql -U postgres -d bform_tracker << EOF
+SELECT year, period, total_uploads, completed_uploads, batch_completion_rate
+FROM bform_upload_summary ORDER BY year DESC, period DESC;
+EOF
+
+4. Insert New Upload
+─────────────────────
+psql -U postgres -d bform_tracker << EOF
+INSERT INTO bform_uploads (
+    customer_id, batch_type, year, period, file_name, file_path,
+    file_size, upload_date, status, uploaded_by, checksum
+) VALUES (
+    '168BF', 'batch_1', 2026, 'Q2', 'Riverside_Q2.pdf',
+    '/uploads/168BF_Q2_2026.pdf', 1024000, CURRENT_TIMESTAMP,
+    'pending', 'admin@riverside-hs.org', 'abc123def456'
+);
+EOF
+
+5. Update Upload Status (Triggers Fire Automatically)
+──────────────────────────────────────────────────────
+psql -U postgres -d bform_tracker << EOF
+UPDATE bform_uploads
+SET status = 'processing'
+WHERE customer_id = '168BF' AND year = 2026 AND period = 'Q2';
+EOF
+
+6. View Audit Trail
+────────────────────
+psql -U postgres -d bform_tracker << EOF
+SELECT * FROM fn_get_audit_report(2026, 'Q1');
+EOF
+
+7. Validate Data Integrity
+────────────────────────────
+psql -U postgres -d bform_tracker << EOF
+SELECT * FROM fn_validate_data_integrity();
+EOF
+
+===============================================================================
+VERIFICATION CHECKLIST
+===============================================================================
+
+After setup, verify these items:
+
+□ Database created successfully
+□ All 4 tables created (psql \dt command shows them)
+□ All 12 indexes created (psql \di command)
+□ All 8 triggers created (psql \dy command)
+□ 56 societies inserted correctly
+□ Sample uploads inserted (12 records)
+□ Sample summaries created (5 records)
+□ Triggers working (test with UPDATE)
+□ No errors in migration_history table
+□ User can query without errors
+
+Test commands:
+──────────────
+\dt                                           # List tables
+\di                                           # List indexes
+\dy                                           # List triggers
+SELECT COUNT(*) FROM bform_societies;        # Should be 56
+SELECT COUNT(*) FROM bform_uploads;          # Should be 12 (sample)
+SELECT * FROM migration_history;             # Should show 3 records
+SELECT * FROM fn_get_batch_statistics();     # Should return stats
+
+===============================================================================
+TROUBLESHOOTING
+===============================================================================
+
+Problem: "CREATE DATABASE permission denied"
+─────────────────────────────────────────────
+Solution: Use a superuser account or create with appropriate privileges
+$ sudo -u postgres createdb bform_tracker
+
+Problem: "relation ... does not exist"
+────────────────────────────────────────
+Solution: Ensure all scripts are executed in correct order
+1. schema.sql (creates tables)
+2. triggers.sql (creates triggers)
+3. initial_data.sql (inserts data)
+4. migration.sql (creates functions)
+
+Problem: "Permission denied" when running scripts
+────────────────────────────────────────────────
+Solution: Ensure correct database user and authentication
+psql -U postgres -d bform_tracker -f schema.sql
+
+Problem: Trigger not firing
+──────────────────────────
+Check trigger status:
+SELECT * FROM information_schema.triggers WHERE event_object_table = 'bform_uploads';
+
+Disable/enable trigger:
+ALTER TABLE bform_uploads DISABLE TRIGGER trg_track_bform_upload_history;
+ALTER TABLE bform_uploads ENABLE TRIGGER trg_track_bform_upload_history;
+
+Problem: "Summary out of sync"
+──────────────────────────────
+Recalculate all summaries:
+SELECT * FROM fn_recalculate_all_summaries();
+
+===============================================================================
+PERFORMANCE NOTES
+===============================================================================
+
+- All indexes use B-tree for optimal range queries
+- Soft delete queries include "WHERE deleted_at IS NULL" for performance
+- Composite indexes on (customer_id, year, period) for common queries
+- Batch completion rate calculated automatically by trigger
+- History tracking uses foreign key with ON DELETE CASCADE
+- Summaries updated automatically, no manual calculations needed
+
+Expected performance:
+- Simple lookup (indexed): < 1ms
+- Range query (year/period): < 10ms
+- Summary calculations: < 50ms
+- Audit report generation: < 100ms
+
+===============================================================================
+BACKUP RECOMMENDATIONS
+===============================================================================
+
+Daily Backups:
+──────────────
+pg_dump -U postgres -d bform_tracker -Fc -f bform_tracker_$(date +%Y%m%d).dump
+
+Weekly Full Backup:
+────────────────────
+pg_dump -U postgres bform_tracker | gzip > bform_tracker_full_$(date +%Y%m%d).sql.gz
+
+Restore from Backup:
+─────────────────────
+pg_restore -U postgres -d bform_tracker bform_tracker_20260722.dump
+
+===============================================================================
+PRODUCTION DEPLOYMENT CHECKLIST
+===============================================================================
+
+□ Database created on production server
+□ All SQL scripts applied in correct order
+□ Verify 56 societies data present
+□ Test trigger functionality
+□ Configure database backups
+□ Set up database user with appropriate permissions
+□ Configure connection pooling if needed
+□ Monitor initial data load performance
+□ Review slow query logs
+□ Create monitoring alerts for upload processing
+□ Test disaster recovery procedure
+□ Document customizations
+□ Set up automated backups
+
+===============================================================================
+SUPPORT & DOCUMENTATION
+===============================================================================
+
+See SETUP_GUIDE.md for:
+- Detailed table descriptions
+- Column definitions
+- Trigger documentation
+- Usage examples
+- Security considerations
+- Performance optimization
+- Data migration procedures
+
+See specific SQL files for:
+- schema.sql: Table definitions and indexes
+- triggers.sql: Automation logic and functions
+- initial_data.sql: Data insertion and sample records
+- migration.sql: Utility functions and queries
+
+===============================================================================
+Created: 2026-07-22
+Version: 1.0
+Status: Production Ready
+===============================================================================

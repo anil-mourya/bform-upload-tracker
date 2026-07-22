@@ -1,0 +1,224 @@
+/* Upload Tracker Container */
+.upload-tracker-container {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+/* Tracker Controls */
+.tracker-controls {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.control-buttons {
+  display: flex;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.btn-icon {
+  display: inline-block;
+  font-size: 1rem;
+}
+
+.btn-icon.spinning {
+  display: inline-block;
+  animation: spin 1s linear infinite;
+}
+
+/* Tabs Container */
+.tabs-container {
+  background-color: var(--bg-primary);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
+  overflow: hidden;
+}
+
+/* Tabs Header */
+.tabs-header {
+  display: flex;
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-secondary);
+}
+
+.tab-button {
+  flex: 1;
+  padding: 1rem;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-bottom: 3px solid transparent;
+  transition: var(--transition);
+  position: relative;
+}
+
+.tab-button:hover {
+  color: var(--text-primary);
+  background-color: rgba(0, 0, 0, 0.03);
+}
+
+.tab-button.active {
+  color: var(--primary-color);
+  border-bottom-color: var(--primary-color);
+  background-color: var(--bg-primary);
+}
+
+.tab-icon {
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.tab-icon.success {
+  background-color: rgba(40, 167, 69, 0.2);
+  color: var(--success-color);
+}
+
+.tab-icon.warning {
+  background-color: rgba(255, 193, 7, 0.2);
+  color: var(--warning-color);
+}
+
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--border-color);
+  color: var(--text-primary);
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border-radius: 12px;
+  font-weight: 600;
+  min-width: 24px;
+}
+
+.tab-button.active .tab-badge {
+  background-color: rgba(0, 123, 255, 0.1);
+  color: var(--primary-color);
+}
+
+/* Tabs Content */
+.tabs-content {
+  padding: 1.5rem;
+  min-height: 400px;
+}
+
+/* Empty State */
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.empty-icon {
+  font-size: 4rem;
+  margin-bottom: 1rem;
+  opacity: 0.5;
+}
+
+.empty-state h3 {
+  color: var(--text-primary);
+  font-size: 1.5rem;
+  margin-bottom: 0.5rem;
+}
+
+.empty-state p {
+  font-size: 0.9375rem;
+  margin-bottom: 0;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .upload-tracker-container {
+    gap: 1.5rem;
+  }
+
+  .tracker-controls {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .control-buttons {
+    width: 100%;
+  }
+
+  .control-buttons button {
+    flex: 1;
+  }
+
+  .tabs-header {
+    flex-direction: column;
+  }
+
+  .tab-button {
+    border-bottom: none;
+    border-right: 3px solid transparent;
+  }
+
+  .tab-button.active {
+    border-right-color: var(--primary-color);
+  }
+
+  .tabs-content {
+    padding: 1rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .tracker-controls {
+    gap: 0.5rem;
+  }
+
+  .control-buttons {
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .control-buttons button {
+    width: 100%;
+    font-size: 0.875rem;
+    padding: 0.5rem;
+  }
+
+  .tab-button {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.875rem;
+  }
+
+  .tab-badge {
+    font-size: 0.625rem;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .tabs-content {
+    padding: 0.75rem;
+    min-height: 300px;
+  }
+
+  .empty-icon {
+    font-size: 3rem;
+  }
+
+  .empty-state h3 {
+    font-size: 1.25rem;
+  }
+}

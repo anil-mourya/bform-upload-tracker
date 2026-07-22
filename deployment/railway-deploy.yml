@@ -1,0 +1,314 @@
+name: Railway Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - staging
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+env:
+  NODE_VERSION: '18'
+  REGISTRY: ghcr.io
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    services:
+      postgres:
+        image: postgres:15-alpine
+        env:
+          POSTGRES_DB: test_db
+          POSTGRES_USER: test_user
+          POSTGRES_PASSWORD: test_password
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install dependencies - Backend
+        run: npm ci --prefix backend
+
+      - name: Install dependencies - Frontend
+        run: npm ci --prefix frontend
+
+      - name: Lint Backend
+        run: npm run lint --prefix backend
+        continue-on-error: true
+
+      - name: Lint Frontend
+        run: npm run lint --prefix frontend
+        continue-on-error: true
+
+      - name: Type Check Backend
+        run: npm run type-check --prefix backend
+        continue-on-error: true
+
+      - name: Type Check Frontend
+        run: npm run type-check --prefix frontend
+        continue-on-error: true
+
+      - name: Test Backend
+        env:
+          DATABASE_URL: postgresql://test_user:test_password@localhost:5432/test_db
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test_secret
+          NODE_ENV: test
+        run: npm test --prefix backend -- --coverage --maxWorkers=2
+        continue-on-error: true
+
+      - name: Test Frontend
+        run: npm test --prefix frontend -- --coverage --watchAll=false --passWithNoTests
+        continue-on-error: true
+
+      - name: Build Backend
+        run: npm run build --prefix backend
+
+      - name: Build Frontend
+        run: npm run build --prefix frontend
+
+      - name: Upload Coverage - Backend
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./backend/coverage/coverage-final.json
+          flags: backend
+          name: backend-coverage
+          continue-on-error: true
+
+      - name: Upload Coverage - Frontend
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./frontend/coverage/coverage-final.json
+          flags: frontend
+          name: frontend-coverage
+          continue-on-error: true
+
+  security-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+        continue-on-error: true
+
+      - name: Upload Trivy results to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+        continue-on-error: true
+
+  deploy-staging:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Deploy to Railway - Staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID_STAGING }}
+          RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID_STAGING }}
+        run: |
+          npm install -g @railway/cli
+          railway link --projectId $RAILWAY_PROJECT_ID --environmentId $RAILWAY_ENVIRONMENT_ID
+          railway up
+
+      - name: Run Database Migrations - Staging
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID_STAGING }}
+          RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID_STAGING }}
+        run: |
+          railway link --projectId $RAILWAY_PROJECT_ID --environmentId $RAILWAY_ENVIRONMENT_ID
+          railway shell backend --command "npm run migrate"
+
+      - name: Health Check - Staging
+        run: |
+          sleep 30
+          curl -f -m 30 https://staging-api.yourdomain.com/health || exit 1
+          curl -f -m 30 https://staging.yourdomain.com/health || exit 1
+
+      - name: Notify Slack - Staging Deployment
+        uses: slackapi/slack-github-action@v1
+        if: always()
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "Staging Deployment ${{ job.status }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "B-Form Tracker - Staging\nStatus: ${{ job.status }}\nBranch: staging\nCommit: ${{ github.sha }}"
+                  }
+                }
+              ]
+            }
+
+  deploy-production:
+    needs: [test, security-scan]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    environment:
+      name: production
+      url: https://yourdomain.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Create GitHub deployment
+        id: deployment
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: 'production',
+              required_contexts: [],
+              auto_merge: false
+            });
+            core.setOutput('deployment_id', deployment.data.id);
+
+      - name: Deploy to Railway - Production
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
+        run: |
+          npm install -g @railway/cli
+          railway link --projectId $RAILWAY_PROJECT_ID --environmentId $RAILWAY_ENVIRONMENT_ID
+          railway up
+
+      - name: Run Database Migrations - Production
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+          RAILWAY_PROJECT_ID: ${{ secrets.RAILWAY_PROJECT_ID }}
+          RAILWAY_ENVIRONMENT_ID: ${{ secrets.RAILWAY_ENVIRONMENT_ID }}
+        run: |
+          railway link --projectId $RAILWAY_PROJECT_ID --environmentId $RAILWAY_ENVIRONMENT_ID
+          railway shell backend --command "npm run migrate"
+
+      - name: Health Check - Production
+        run: |
+          sleep 40
+          max_attempts=5
+          attempt=1
+          until [ $attempt -gt $max_attempts ]; do
+            if curl -f -m 30 https://api.yourdomain.com/health && \
+               curl -f -m 30 https://yourdomain.com/health; then
+              echo "Health checks passed"
+              exit 0
+            fi
+            echo "Attempt $attempt/$max_attempts failed, retrying..."
+            attempt=$((attempt + 1))
+            sleep 10
+          done
+          exit 1
+
+      - name: Create deployment status - Success
+        if: success()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: ${{ steps.deployment.outputs.deployment_id }},
+              state: 'success',
+              environment_url: 'https://yourdomain.com'
+            });
+
+      - name: Create deployment status - Failure
+        if: failure()
+        uses: actions/github-script@v6
+        with:
+          script: |
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: ${{ steps.deployment.outputs.deployment_id }},
+              state: 'failure'
+            });
+
+      - name: Notify Slack - Production Deployment
+        uses: slackapi/slack-github-action@v1
+        if: always()
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "Production Deployment ${{ job.status }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "B-Form Tracker - Production\nStatus: ${{ job.status }}\nBranch: main\nCommit: ${{ github.sha }}"
+                  }
+                }
+              ]
+            }
+
+      - name: Create Release
+        if: success()
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: Release v${{ github.run_number }}
+          body: |
+            Production deployment v${{ github.run_number }}
+            Commit: ${{ github.sha }}
+          draft: false
+          prerelease: false

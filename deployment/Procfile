@@ -1,0 +1,3 @@
+web: npm --prefix backend start
+api: npm --prefix backend start
+frontend: npm --prefix frontend start

@@ -1,0 +1,53 @@
+{
+  "$schema": "https://railway.app/schema/railway.schema.json",
+  "services": {
+    "backend": {
+      "source": "backend",
+      "builder": "nixpacks",
+      "runtime": "nodejs",
+      "rootDirectory": "backend",
+      "buildCommand": "npm install && npm run build",
+      "startCommand": "npm start",
+      "watch": ["backend/src"],
+      "variables": {
+        "NODE_ENV": "production",
+        "PORT": "5000",
+        "LOG_LEVEL": "info"
+      },
+      "buildPacks": {
+        "providers": ["nodejs"]
+      }
+    },
+    "frontend": {
+      "source": "frontend",
+      "builder": "nixpacks",
+      "runtime": "nodejs",
+      "rootDirectory": "frontend",
+      "buildCommand": "npm install && npm run build",
+      "startCommand": "npm start",
+      "watch": ["frontend/src"],
+      "variables": {
+        "NODE_ENV": "production",
+        "PORT": "3000"
+      },
+      "buildPacks": {
+        "providers": ["nodejs"]
+      }
+    },
+    "postgres": {
+      "image": "postgres:15",
+      "version": "15",
+      "variables": {
+        "POSTGRES_DB": "bform_db",
+        "POSTGRES_USER": "bform_user",
+        "POSTGRES_PASSWORD": "change_me_in_production"
+      }
+    }
+  },
+  "plugins": {
+    "postgres": {
+      "type": "postgres",
+      "version": "15"
+    }
+  }
+}
