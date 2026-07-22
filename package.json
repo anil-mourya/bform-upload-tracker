@@ -1,0 +1,46 @@
+{
+  "name": "bform-upload-tracker",
+  "version": "1.0.0",
+  "description": "B-Form Upload Tracker for ASZ One CRM - Internal record-keeping system with date-wise filtering",
+  "main": "backend/src/app.js",
+  "scripts": {
+    "start": "npm run start:prod",
+    "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
+    "dev:backend": "cd backend && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "build": "concurrently \"npm run build:backend\" \"npm run build:frontend\"",
+    "build:backend": "cd backend && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "start:prod": "npm run build && npm run start:backend",
+    "start:backend": "cd backend && npm start",
+    "test": "concurrently \"npm run test:backend\" \"npm run test:frontend\"",
+    "test:backend": "cd backend && npm test",
+    "test:frontend": "cd frontend && npm test",
+    "migrate": "cd backend && npm run migrate",
+    "migrate:rollback": "cd backend && npm run migrate:rollback",
+    "lint": "concurrently \"npm run lint:backend\" \"npm run lint:frontend\"",
+    "lint:backend": "cd backend && npm run lint",
+    "lint:frontend": "cd frontend && npm run lint"
+  },
+  "keywords": [
+    "bform",
+    "upload-tracker",
+    "asz-one",
+    "crm",
+    "fire-safety"
+  ],
+  "author": "Anil Mourya",
+  "email": "anil_mourya@outlook.com",
+  "license": "Proprietary",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/bform-upload-tracker.git"
+  },
+  "devDependencies": {
+    "concurrently": "^7.0.0"
+  },
+  "engines": {
+    "node": ">=16.0.0",
+    "npm": ">=8.0.0"
+  }
+}
